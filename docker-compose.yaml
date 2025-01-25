@@ -1,0 +1,66 @@
+
+services:
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "sh -c 'pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DATABASE}'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_volume:/var/lib/postgresql/data/
+      - ./dump/schema.sql:/docker-entrypoint-initdb.d/init.sql
+    env_file:
+      - ./.env
+    environment:
+      TZ: "Europe/Moscow"
+      PGTZ: "Europe/Moscow"
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+
+  redis:
+    image: redis:6
+    container_name: redis
+    volumes:
+      - redis_volume:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: app
+    volumes:
+      - ./app:/usr/src/app/
+    env_file:
+      - ./.env
+    ports:
+      - "8111:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  antifraud:
+    image: lodthe/prod-backend-antifraud:latest
+    container_name: antifraud
+    environment:
+      - SERVER_PORT=9090
+      - CACHE_DURATION_MS=5000
+    ports:
+      - "9090:9090"
+
+volumes:
+  postgres_volume:
+  redis_volume:

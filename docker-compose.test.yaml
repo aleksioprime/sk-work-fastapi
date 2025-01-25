@@ -1,0 +1,74 @@
+x-app: &app
+  env_file:
+    - ./.env.test
+
+services:
+  test_postgres:
+    image: postgres:14
+    <<: *app
+    container_name: postgres_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_test_volume:/var/lib/postgresql/data/
+      - ./dump/schema.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      TZ: "Europe/Moscow"
+      PGTZ: "Europe/Moscow"
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+
+  test_redis:
+    image: redis:6
+    <<: *app
+    container_name: redis_test
+    volumes:
+      - redis_test_volume:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  test_app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    <<: *app
+    container_name: test_app
+    volumes:
+      - ./app:/usr/src/app/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      test_postgres:
+        condition: service_healthy
+      test_redis:
+        condition: service_healthy
+
+  test_runner:
+    build:
+      context: ./tests
+      dockerfile: Dockerfile
+    <<: *app
+    container_name: test_runner
+    volumes:
+      - ./tests:/usr/src/app/
+    depends_on:
+      test_app:
+        condition: service_healthy
+      test_postgres:
+        condition: service_healthy
+      test_redis:
+        condition: service_healthy
+
+volumes:
+  postgres_test_volume:
+  redis_test_volume:
