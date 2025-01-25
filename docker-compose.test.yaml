@@ -14,7 +14,7 @@ services:
       retries: 5
     volumes:
       - postgres_test_volume:/var/lib/postgresql/data/
-      - ./dump/schema.sql:/docker-entrypoint-initdb.d/init.sql
+      # - ./dump/schema.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
       TZ: "Europe/Moscow"
       PGTZ: "Europe/Moscow"

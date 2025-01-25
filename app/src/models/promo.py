@@ -5,6 +5,7 @@ from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, JSON, DateT
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql import func, text
 
 
 from src.db.postgres import Base
@@ -13,20 +14,20 @@ from src.db.postgres import Base
 class Promo(Base):
     __tablename__ = "promos"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"), index=True)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     mode = Column(String(10), nullable=False)
     promo_common = Column(String(50), nullable=True)
-    promo_unique = Column(JSON, nullable=True)
+    promo_unique = Column(JSONB, nullable=True)
     description = Column(String, nullable=False)
     image_url = Column(String, nullable=True)
     target = Column(JSONB, nullable=True)
     max_count = Column(Integer, nullable=False)
-    active_from = Column(DateTime, nullable=False)
+    active_from = Column(DateTime, nullable=True)
     active_until = Column(DateTime, nullable=True)
     active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     # Связи с другими таблицами
     company = relationship("Company", back_populates="promos")
@@ -37,12 +38,12 @@ class Promo(Base):
 class Comment(Base):
     __tablename__ = "comments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    promo_id = Column(UUID(as_uuid=True), ForeignKey("promos.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"), index=True)
+    promo_id = Column(UUID(as_uuid=True), ForeignKey("promos.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     promo = relationship("Promo", back_populates="comments")
     user = relationship("User", back_populates="comments")
@@ -51,10 +52,10 @@ class Comment(Base):
 class Like(Base):
     __tablename__ = "likes"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    promo_id = Column(UUID(as_uuid=True), ForeignKey("promos.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"), index=True)
+    promo_id = Column(UUID(as_uuid=True), ForeignKey("promos.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
 
     promo = relationship("Promo", back_populates="likes")
     user = relationship("User", back_populates="likes")
@@ -63,11 +64,11 @@ class Like(Base):
 class PromoActivation(Base):
     __tablename__ = "promo_activations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    promo_id = Column(UUID(as_uuid=True), ForeignKey("promos.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"), index=True)
+    promo_id = Column(UUID(as_uuid=True), ForeignKey("promos.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     activation_value = Column(String(50), nullable=True)
-    activated_at = Column(DateTime, default=datetime.utcnow)
+    activated_at = Column(DateTime, server_default=func.now())
 
     promo = relationship("Promo")
     user = relationship("User")

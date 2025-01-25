@@ -5,17 +5,25 @@ from fastapi import FastAPI
 from redis.asyncio import Redis
 
 from src.db import redis
+from src.db.postgres import engine, Base
 from src.core.config import settings
 from src.api import ping, company, promo, user
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Управление жизненным циклом приложения FastAPI
     """
+
     redis.redis = Redis(host=settings.redis.host, port=settings.redis.port)
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     yield
     await redis.redis.close()
+    await engine.dispose()
 
 
 # Инициализация FastAPI-приложения
