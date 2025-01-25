@@ -1,3 +1,4 @@
+from typing import Optional
 from uuid import uuid4
 import re
 from datetime import datetime, timezone, timedelta
@@ -31,8 +32,7 @@ class PromoService:
         Создание компанией нового промокода
         POST /business/promo
         """
-
-        # Ручная валидация входных данных
+        # Проверка наличия обязательных полей
         required_fields = ["description", "target", "max_count", "mode"]
         missing_fields = [field for field in required_fields if field not in body]
         if missing_fields:
@@ -41,38 +41,10 @@ class PromoService:
                 detail=f"Missing required fields: {', '.join(missing_fields)}"
             )
 
-        # Проверка длины описания
-        if len(body["description"]) < 10:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Description must be at least 10 characters long."
-            )
-
-        # Проверка допустимых стран
-        if "country" in body["target"] and not pycountry.countries.get(alpha_2=body["target"]["country"].upper()):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid country: {body['target']['country']}. Country must be a valid ISO 3166-1 alpha-2 code."
-            )
-
-        # Дополнительная валидация значений
-        if body["mode"] not in {"COMMON", "UNIQUE"}:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid mode. Allowed values are 'COMMON' or 'UNIQUE'."
-            )
-
-        if body["mode"] == "COMMON" and "promo_common" not in body:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="promo_common is required for mode 'COMMON'."
-            )
-
-        if body["mode"] == "UNIQUE" and "promo_unique" not in body:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="promo_unique is required for mode 'UNIQUE'."
-            )
+        # Валидация входящих данных
+        errors = self.validate_promo(body)
+        if errors:
+            raise HTTPException(status_code=400, detail=errors)
 
         promo = Promo(
             id=str(uuid4()),
@@ -254,41 +226,7 @@ class PromoService:
             )
 
         # Валидация входящих данных
-        errors = []
-        if "description" in body and len(body["description"]) < 10:
-            errors.append({"field": "description", "msg": "Description must be at least 10 characters long."})
-        if "image_url" in body:
-            if not isinstance(body["image_url"], str):
-                errors.append({"field": "image_url", "msg": "Image URL must be a valid string."})
-            elif not body["image_url"].startswith(("http://", "https://")):
-                errors.append({"field": "image_url", "msg": "Image URL must start with 'http://' or 'https://'."})
-        if "target" in body:
-            target = body["target"]
-            age_from = target.get("age_from")
-            age_until = target.get("age_until")
-            if age_from is not None and age_until is not None and age_from > age_until:
-                errors.append({"field": "target", "msg": "'age_from' cannot be greater than 'age_until'."})
-            categories = target.get("categories", [])
-            if any(not category for category in categories):
-                errors.append({"field": "target.categories", "msg": "Categories cannot contain empty values."})
-            country = target.get("country")
-            if country is not None and not pycountry.countries.get(alpha_2=country.upper()):
-                errors.append({"field": "target.country", "msg": "Country must be a valid ISO 3166-1 alpha-2 code."})
-        if "max_count" in body and promo.mode == "UNIQUE" and body["max_count"] != 1:
-            errors.append({"field": "max_count", "msg": "For UNIQUE mode, max_count must be 1."})
-        if "active_from" in body:
-            try:
-                datetime.strptime(body["active_from"], "%Y-%m-%d")
-            except ValueError:
-                errors.append({"field": "active_from", "msg": "Active_from must be in 'YYYY-MM-DD' format."})
-        if "active_until" in body:
-            try:
-                if body["active_until"]:
-                    datetime.strptime(body["active_until"], "%Y-%m-%d")
-            except ValueError:
-                errors.append({"field": "active_until", "msg": "Active_until must be in 'YYYY-MM-DD' format."})
-
-        # Если есть ошибки валидации, вернуть 400 с деталями ошибок
+        errors = self.validate_promo(body, promo)
         if errors:
             raise HTTPException(status_code=400, detail=errors)
 
@@ -329,6 +267,61 @@ class PromoService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update promo."
             )
+
+    def validate_promo(self, body: dict, promo: Optional[Promo] = None) -> dict:
+        # Валидация входящих данных
+        errors = []
+
+        if "description" in body and len(body["description"]) < 10:
+            errors.append({"field": "description", "msg": "Description must be at least 10 characters long."})
+
+        if "mode" in body:
+            if body["mode"] not in {"COMMON", "UNIQUE"}:
+                errors.append({"field": "mode", "msg": "Invalid mode. Allowed values are 'COMMON' or 'UNIQUE'."})
+
+            if body["mode"] == "COMMON" and "promo_common" not in body:
+                errors.append({"field": "promo_common", "msg": "promo_common is required for mode 'COMMON'."})
+
+            if body["mode"] == "UNIQUE" and "promo_unique" not in body:
+                errors.append({"field": "promo_unique", "msg": "promo_unique is required for mode 'UNIQUE'."})
+
+        if "image_url" in body:
+            if not isinstance(body["image_url"], str):
+                errors.append({"field": "image_url", "msg": "Image URL must be a valid string."})
+            elif not body["image_url"].startswith(("http://", "https://")):
+                errors.append({"field": "image_url", "msg": "Image URL must start with 'http://' or 'https://'."})
+
+        if "target" in body:
+            target = body["target"]
+            age_from = target.get("age_from")
+            age_until = target.get("age_until")
+            if age_from is not None and age_until is not None and age_from > age_until:
+                errors.append({"field": "target", "msg": "'age_from' cannot be greater than 'age_until'."})
+            categories = target.get("categories", [])
+            if any(not category for category in categories):
+                errors.append({"field": "target.categories", "msg": "Categories cannot contain empty values."})
+            country = target.get("country")
+            if country is not None and not pycountry.countries.get(alpha_2=country.upper()):
+                errors.append({"field": "target.country", "msg": "Country must be a valid ISO 3166-1 alpha-2 code."})
+
+
+        if "max_count" in body and promo is not None and promo.mode == "UNIQUE" and body["max_count"] != 1:
+            errors.append({"field": "max_count", "msg": "For UNIQUE mode, max_count must be 1."})
+
+        if "active_from" in body:
+            try:
+                datetime.strptime(body["active_from"], "%Y-%m-%d")
+            except ValueError:
+                errors.append({"field": "active_from", "msg": "Active_from must be in 'YYYY-MM-DD' format."})
+
+        if "active_until" in body:
+            try:
+                if body["active_until"]:
+                    datetime.strptime(body["active_until"], "%Y-%m-%d")
+            except ValueError:
+                errors.append({"field": "active_until", "msg": "Active_until must be in 'YYYY-MM-DD' format."})
+
+        return errors
 
     async def promo_user_get_list(self, db: AsyncSession, user_id: str, country: str = None, search: str = None) -> dict:
         """
