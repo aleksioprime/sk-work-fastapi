@@ -1,6 +1,6 @@
 from typing import Optional, Dict
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, HttpUrl
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,9 +34,14 @@ async def user_sign_up(
         status_code=status.HTTP_200_OK,
         )
 async def user_sign_in(
-    request: dict,
+    request: dict = Body(None),
     db: AsyncSession = Depends(get_db_session),
     ):
+    if not request:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Request body is required",
+        )
     return await user_service.sign_in(request, db)
 
 

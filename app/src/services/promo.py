@@ -349,6 +349,10 @@ class PromoService:
             )
         )
 
+        # Подсчет общего количества записей
+        total_query = select(func.count()).select_from(query.subquery())
+        total_count = (await db.execute(total_query)).scalar()
+
         # Фильтрация по стране
         if country:
             query = query.filter(Promo.target["country"].astext.ilike(f"%{country}%"))
@@ -366,7 +370,7 @@ class PromoService:
         # Выполнение запроса
         promos = (await db.execute(query)).scalars().all()
 
-        return [
+        promos_dicts = [
             {
                 "id": promo.id,
                 "description": promo.description,
@@ -381,6 +385,11 @@ class PromoService:
             }
             for promo in promos
         ]
+
+        return {
+            "total_count": total_count,
+            "promos": promos_dicts,
+        }
 
 
     async def promo_user_get_by_id(self, promo_id: str, db: AsyncSession, user_id: str) -> dict:

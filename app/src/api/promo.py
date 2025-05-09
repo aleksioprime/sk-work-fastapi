@@ -111,8 +111,15 @@ async def user_promo_feed(
     country: str = None,
     search: str = None
     ):
+
     user_id = await user_service.validate_token(token)
-    return await promo_service.promo_user_get_list(db, user_id, country=country, search=search)
+
+    result = await promo_service.promo_user_get_list(db, user_id, country=country, search=search)
+    total_count = result["total_count"]
+    promos = result["promos"]
+
+    headers = {"X-Total-Count": str(total_count)}
+    return JSONResponse(content=promos, headers=headers)
 
 
 @router.get(

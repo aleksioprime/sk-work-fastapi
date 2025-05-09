@@ -42,11 +42,28 @@ class UserService:
             user = User(
                 email=body["email"],
                 password=body["password"],
-                name=body.get("name")
+                name=body.get("name"),
+                surname=body.get("surname"),
+                other=body.get("other")
             )
             db.add(user)
             await db.commit()
-            return {"id": user.id, "email": user.email, "name": user.name}
+
+            token = jwt.encode(
+                {"sub": str(user.id), "exp": datetime.utcnow() + timedelta(minutes=settings.jwt.token_expire_time)},
+                settings.jwt.secret_key,
+                algorithm=settings.jwt.algorithm
+            )
+
+            return {
+                "id": str(user.id),
+                "email": user.email,
+                "name": user.name,
+                "surname": user.surname,
+                "other": user.other,
+                "token": token,
+            }
+
         except IntegrityError:
             await db.rollback()
             raise HTTPException(
@@ -128,7 +145,14 @@ class UserService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found."
             )
-        return {"id": user.id, "email": user.email, "name": user.name, "created_at": user.created_at}
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "name": user.name,
+            "surname": user.surname,
+            "created_at": user.created_at,
+            "other": user.other if isinstance(user.other, dict) else None
+        }
 
     async def profile_update(self, user_id: str, body: dict, db: AsyncSession) -> dict:
         """
